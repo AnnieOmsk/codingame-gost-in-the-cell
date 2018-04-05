@@ -2,6 +2,21 @@ import java.util.*;
 import java.io.*;
 import java.math.*;
 
+class Utils {
+    public static final Integer DEFENDERS_COUNT = 5;
+
+    public static String numberFormat(Integer number) {
+        String numberString;
+        if (number < 10) {
+            numberString = "  " + number.toString();
+        } else if (number < 100) {
+            numberString = " " + number.toString();
+        } else {
+            numberString = number.toString();
+        }
+        return numberString;
+    }
+}
 
 class Factory {
     public Integer id;
@@ -28,18 +43,27 @@ class Factory {
             default:
                 ownString = "Neurtal";
         }
-        String cyborgsNumberString;
-        if (this.cyborgsNumber < 10) {
-            cyborgsNumberString = "  " + this.cyborgsNumber.toString();
-        } else if (this.cyborgsNumber < 100) {
-            cyborgsNumberString = " " + this.cyborgsNumber.toString();
-        } else {
-            cyborgsNumberString = this.cyborgsNumber.toString();
-        }
         
-        return ownString + ": " + this.id + ", " + this.cyborgsNumber.toString() + ", " + this.production.toString();
+        return ownString + ": " + this.id + ", " + Utils.numberFormat(this.cyborgsNumber) + ", " + this.production.toString();
     }
 }
+
+class Move {
+    public Factory attackingFactory = null;
+    public Factory factoryForAttack = null;
+    public Integer troopSize = 0;
+
+    Move(Factory attackingFactory, Factory factoryForAttack, Integer troopSize) {
+        this.attackingFactory = attackingFactory;
+        this.factoryForAttack = factoryForAttack;
+        this.troopSize = troopSize;
+    }
+
+    public String toString() {
+        return "MOVE " + this.attackingFactory.id + " " + this.factoryForAttack.id + " " + this.troopSize;
+    }
+}
+
  
 /**
  * Auto-generated code below aims at helping you parse
@@ -86,45 +110,68 @@ class Player {
                 }
             }
 
-            boolean moved = false;
-            Factory attackingFactory = null;
-            Factory factoryForAttack = null;
-            Integer troopSize = 0;
-            for (Factory enemyFactory: enemyFactories) {
-                for (Factory myFactory: myFactories) {
-                    if (2 * enemyFactory.cyborgsNumber < myFactory.cyborgsNumber - 10) {
-                        attackingFactory = myFactory;
-                        factoryForAttack = enemyFactory;
-                        troopSize = (myFactory.cyborgsNumber - 5) / 2;
-                        moved = true;
-                        break;
+            Integer enemyMinimalDefenders = Utils.DEFENDERS_COUNT;
+            if (enemyFactories.size() > 0) {
+                enemyMinimalDefenders = enemyFactories.get(0).cyborgsNumber;
+                for (Factory enemyFactory : enemyFactories) {
+                    if (enemyFactory.cyborgsNumber < enemyMinimalDefenders) {
+                        enemyMinimalDefenders = enemyFactory.cyborgsNumber;
                     }
-                }
-                if (moved) {
-                    break;
                 }
             }
 
-            //When no enemy's factory for attack finding a neutral one
-            if (!moved) {
-                for (Factory neutralFactory: neutralFactories) {
-                    for (Factory myFactory: myFactories) {
-                        if (2 * neutralFactory.cyborgsNumber < myFactory.cyborgsNumber - 10) {
-                            attackingFactory = myFactory;
-                            factoryForAttack = neutralFactory;
-                            troopSize = (myFactory.cyborgsNumber - 5) / 2;
-                            moved = true;
+            Integer myMinimalDefenders = Math.min(enemyMinimalDefenders, Utils.DEFENDERS_COUNT);
+
+            List<Move> moves = new LinkedList<Move>();
+            for (Factory myFactory : myFactories) {
+                Integer cyborgsForAttack = (myFactory.cyborgsNumber - myMinimalDefenders > 0) ? myFactory.cyborgsNumber - myMinimalDefenders : 0;
+                System.err.println(myFactory.toString() + ", cyborgsForAttack: " + cyborgsForAttack);
+                if (cyborgsForAttack > 0) {
+                    for (Factory enemyFactory : enemyFactories) {
+                        if (cyborgsForAttack > 2 * enemyFactory.cyborgsNumber + 1) {
+                            Integer troopSize = enemyFactory.cyborgsNumber + 1;
+                            moves.add(new Move(myFactory, enemyFactory, troopSize));
+                            myFactory.cyborgsNumber -= troopSize;
+                            cyborgsForAttack -= troopSize;
+                        }
+                        if (cyborgsForAttack <= 0) {
                             break;
                         }
                     }
-                    if (moved) {
-                        break;
-                    }
                 }
+                System.err.println(myFactory.toString() + ", cyborgsNumber: " + myFactory.cyborgsNumber);
             }
 
-            if (moved && (attackingFactory != null) && (factoryForAttack != null)) {
-                System.out.println("MOVE " + attackingFactory.id + " " + factoryForAttack.id + " " + troopSize);
+            for (Factory myFactory : myFactories) {
+                Integer cyborgsForAttack = (myFactory.cyborgsNumber - myMinimalDefenders > 0) ? myFactory.cyborgsNumber - myMinimalDefenders : 0;
+                System.err.println(myFactory.toString() + ", cyborgsForAttack: " + cyborgsForAttack);
+                if (cyborgsForAttack > 0) {
+                    for (Factory neutralFactory: neutralFactories) {
+                        if (cyborgsForAttack > neutralFactory.cyborgsNumber + 1) {
+                            Integer troopSize = neutralFactory.cyborgsNumber + 1;
+                            moves.add(new Move(myFactory, neutralFactory, troopSize));
+                            myFactory.cyborgsNumber -= troopSize;
+                            cyborgsForAttack -= troopSize;
+                        }
+                        if (cyborgsForAttack <= 0) {
+                            break;
+                        }
+                    }
+                }
+                System.err.println(myFactory.toString() + ", cyborgsNumber: " + myFactory.cyborgsNumber);
+            }
+
+            if (moves.size() > 0) {
+                int movesCount = 0;
+                StringBuilder moveStringBuilder = new StringBuilder(moves.size() * 15);
+                for (Move move : moves) {
+                    moveStringBuilder.append(move.toString());
+                    if (movesCount < moves.size() - 1) {
+                        moveStringBuilder.append(";");    
+                    }                
+                    movesCount++;
+                }
+                System.out.println(moveStringBuilder.toString());
             } else {
                 System.out.println("WAIT");
             }
