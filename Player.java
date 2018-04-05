@@ -55,12 +55,12 @@ class Utils {
     }
 
     public static List<Factory> findTheNearestFactoriesToCertainFactory(
-        List<Factory> potentialNearestFactories, Factory certainFactory, Integer[][] destinations, Integer bottomDestination
+        List<Factory> potentialNearestFactories, Factory certainFactory, Integer[][] destinations, Integer bottomDestination, Integer topDestination
     ) {
 
-        Integer minDestination = 1000; 
+        Integer minDestination = bottomDestination + topDestination; 
         for (Factory potentialFactory : potentialNearestFactories) {
-            if ((destinations[potentialFactory.id][certainFactory.id] > bottomDestination) && (destinations[potentialFactory.id][certainFactory.id] < minDestination) && (potentialFactory.cyborgsNumber > certainFactory.cyborgsNumber + 1)) {
+            if ((destinations[potentialFactory.id][certainFactory.id] > bottomDestination) && (destinations[potentialFactory.id][certainFactory.id] < minDestination)) {
                 minDestination = destinations[potentialFactory.id][certainFactory.id];
             }
         }
@@ -318,7 +318,7 @@ class Player {
                         List<Factory> enemyFactoriesWithMaximumDefenders = Utils.findFactoriesWithMaximumDefenders(bestEnemyProductionFactories);
                         for (Factory enemyFactory : enemyFactoriesWithMaximumDefenders) {
                             if (!bombedFactoriesIDs.contains(enemyFactory.id)) {
-                                List<Factory> myNearestFactories = Utils.findTheNearestFactoriesToCertainFactory(myFactories, enemyFactory, destinations, 0);
+                                List<Factory> myNearestFactories = Utils.findTheNearestFactoriesToCertainFactory(myFactories, enemyFactory, destinations, 0, topDestination);
                                 for (Factory myFactory : myNearestFactories) {
                                     bombingFactory = myFactory;
                                     factoryForBombing = enemyFactory;
@@ -339,15 +339,15 @@ class Player {
             Set<Integer> attackedFactoriesIDs = new TreeSet<Integer>();
 
             // Find the best neutral factories for attack: maximum production. Find my factories for attack: nearest and enough defenders
-            System.err.println("Attacking neutrals");
+            System.err.println("------------ Attacking neutrals ------------");
             if (neutralFactories.size() > 0) {
                 for (Integer production = Utils.MAX_PRODUCTION; production >= 0; production--) {
                     List<Factory> bestProductionNeutralFactories = Utils.findFactoriesByProduction(neutralFactories, production);
                     for (Factory neutralFactory : bestProductionNeutralFactories) {
                         System.err.println(neutralFactory.toString());
                         Integer bottomDestination = 0;
-                        while (bottomDestination <= topDestination) {
-                            List<Factory> myNearestFactories = Utils.findTheNearestFactoriesToCertainFactory(myFactories, neutralFactory, destinations, bottomDestination);
+                        while (bottomDestination <= topDestination / 2) {
+                            List<Factory> myNearestFactories = Utils.findTheNearestFactoriesToCertainFactory(myFactories, neutralFactory, destinations, bottomDestination, topDestination);
                             for (Factory myFactory : myNearestFactories) {
                                 System.err.println(myFactory.toString());
                                 Troop existingTroop = null;
@@ -384,59 +384,65 @@ class Player {
 
             // Find the best enemy's factories for attack: already bombed or maximum production, minimum defenders, the closest, not under bombing
             // Find the best my attacking factories: the closest to attacked enemy's factories, maximun defenders
-            // Find my factories to send troops to my attacking factories: the closest
-
-            /*int turnToForecast = 1;
-            // Detecting of minimal defenders for my factories
-            Integer enemyMinimalDefenders = Utils.DEFENDERS_COUNT;
+            System.err.println("------------ Attacking enemies ------------");
             if (enemyFactories.size() > 0) {
-                enemyMinimalDefenders = enemyFactories.get(0).cyborgsNumber;
-                for (Factory enemyFactory : enemyFactories) {
-                    if (enemyFactory.cyborgsNumber < enemyMinimalDefenders) {
-                        enemyMinimalDefenders = enemyFactory.cyborgsNumber;
+                for (Integer production = Utils.MAX_PRODUCTION; production >= 0; production--) {
+                    List<Factory> bestProductionEnemyFactories = Utils.findFactoriesByProduction(enemyFactories, production);
+                    for (Factory enemyFactory : bestProductionEnemyFactories) {
+                        System.err.println(enemyFactory.toString());
+                        Integer bottomDestination = 0;
+                        while (bottomDestination <= topDestination) {
+                            List<Factory> myNearestFactories = Utils.findTheNearestFactoriesToCertainFactory(myFactories, enemyFactory, destinations, bottomDestination, topDestination);
+                            for (Factory myFactory : myNearestFactories) {
+                                System.err.println(myFactory.toString());
+                                Troop existingTroop = null;
+                                for (Troop myTroop : myTroops) {
+                                    if (myTroop.destinationFactoryID.equals(enemyFactory.id)) {
+                                        existingTroop = myTroop;
+                                        break;
+                                    }
+                                }
+                                Integer advantage = 1;
+                                if (enemyFactory.production == 0) {
+                                    advantage = Utils.INCREASING_COST + 1;
+                                }
+                                if ((existingTroop == null) && (!attackedFactoriesIDs.contains(enemyFactory.id)) && (myFactory.cyborgsNumber > enemyFactory.cyborgsNumber + advantage)) {
+                                    Integer cyborgsForAttack = enemyFactory.cyborgsNumber + advantage;
+                                    System.err.println(cyborgsForAttack.toString());
+                                    attackedFactoriesIDs.add(enemyFactory.id);
+                                    Move move = new Move(myFactory, enemyFactory, cyborgsForAttack);
+                                    moves.add(move);
+                                    myFactory.cyborgsNumber -= cyborgsForAttack;
+                                    for (int i = 0; i < Utils.FORESEE_TURNS_COUNT; i++) {
+                                        myFactory.defendersByTurns[i] -= cyborgsForAttack;
+                                    }
+                                    if (cyborgsForAttack == enemyFactory.cyborgsNumber + advantage) {
+                                        break;
+                                    }
+                                }
+                            }
+                            bottomDestination++;
+                        }
                     }
                 }
             }
+            // Find my factories to send troops to my attacking factories: the closest
 
-            Integer myMinimalDefenders = Math.max(enemyMinimalDefenders, Utils.DEFENDERS_COUNT);
-
-            // Making moves
-            System.err.println("Analyzing enemies");
-            List<Move> moves = new LinkedList<Move>();
-            for (Factory myFactory : myFactories) {
-                Integer neededDefenders = myFactory.defendersByTurns[turnToForecast] - myFactory.enemiesComingByTurns[turnToForecast] + 1;
-                System.err.println(myFactory.toString() + ", neededDefenders: " + neededDefenders);
-                Integer cyborgsForAttack = (myFactory.cyborgsNumber - neededDefenders > 0) ? myFactory.cyborgsNumber - neededDefenders : 0;
-                System.err.println(myFactory.toString() + ", cyborgsForAttack: " + cyborgsForAttack);
-                if (cyborgsForAttack > 0) {
-                    for (Factory enemyFactory : enemyFactories) {
-                        if (!attackedFactoriesIDs.contains(enemyFactory.id) && (cyborgsForAttack > enemyFactory.defendersByTurns[turnToForecast] + 1)) {
-                            Integer troopSize = enemyFactory.cyborgsNumber + 1;
-                            moves.add(new Move(myFactory, enemyFactory, troopSize));
-                            myFactory.cyborgsNumber -= troopSize;
-                            for (int i = 1; i < Utils.FORESEE_TURNS_COUNT; i++) {
-                                myFactory.defendersByTurns[i] -= troopSize;
-                            }
-                            cyborgsForAttack -= troopSize;
-                            attackedFactoriesIDs.add(enemyFactory.id);
-                        }
-                        if (cyborgsForAttack <= 0) {
-                            break;
-                        }
-                    }
-                }
-                //System.err.println(myFactory.toString() + ", cyborgsNumber: " + myFactory.cyborgsNumber);
-            }*/
 
             // Increasing of factories production
             List<Integer> factoriesForIncreasingIDs = new LinkedList<Integer>();
             for (Factory myFactory : myFactories) {
-                if ((myFactory.production < Utils.MAX_PRODUCTION) && (myFactory.cyborgsNumber > Utils.INCREASING_COST)) {
+                if ((myFactory.production == 0) && (myFactory.cyborgsNumber > Utils.INCREASING_COST) && (myFactory.turnsBeforeProduction == 0)) {
                     factoriesForIncreasingIDs.add(myFactory.id);
+                    break;
+                }
+                if ((myFactory.production > 0) && (myFactory.production < Utils.MAX_PRODUCTION) && (myFactory.cyborgsNumber > Utils.INCREASING_COST * 2) && (myFactory.turnsBeforeProduction == 0)) {
+                    factoriesForIncreasingIDs.add(myFactory.id);
+                    break;
                 }
             }
 
-
+            // Making turn output
             StringBuilder turnStringBuilder = new StringBuilder(moves.size() * 15 + bombs.size() * 10 + factoriesForIncreasingIDs.size() * 10 + 10);
             turnStringBuilder.append("WAIT");
             if (bombs.size() > 0) {
