@@ -85,11 +85,17 @@ class Player {
                     System.err.println(factory.toString());
                 }
             }
+
             boolean moved = false;
+            Factory attackingFactory = null;
+            Factory factoryForAttack = null;
+            Integer troopSize = 0;
             for (Factory enemyFactory: enemyFactories) {
                 for (Factory myFactory: myFactories) {
                     if (2 * enemyFactory.cyborgsNumber < myFactory.cyborgsNumber - 10) {
-                        System.out.println("MOVE " + myFactory.id + " " + enemyFactory.id + " " + (myFactory.cyborgsNumber - 5) / 2);   
+                        attackingFactory = myFactory;
+                        factoryForAttack = enemyFactory;
+                        troopSize = (myFactory.cyborgsNumber - 5) / 2;
                         moved = true;
                         break;
                     }
@@ -99,8 +105,27 @@ class Player {
                 }
             }
 
-            // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
+            //When no enemy's factory for attack finding a neutral one
             if (!moved) {
+                for (Factory neutralFactory: neutralFactories) {
+                    for (Factory myFactory: myFactories) {
+                        if (2 * neutralFactory.cyborgsNumber < myFactory.cyborgsNumber - 10) {
+                            attackingFactory = myFactory;
+                            factoryForAttack = neutralFactory;
+                            troopSize = (myFactory.cyborgsNumber - 5) / 2;
+                            moved = true;
+                            break;
+                        }
+                    }
+                    if (moved) {
+                        break;
+                    }
+                }
+            }
+
+            if (moved && (attackingFactory != null) && (factoryForAttack != null)) {
+                System.out.println("MOVE " + attackingFactory.id + " " + factoryForAttack.id + " " + troopSize);
+            } else {
                 System.out.println("WAIT");
             }
         }
